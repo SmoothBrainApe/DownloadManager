@@ -16,7 +16,7 @@ def main():
         )
         dm.set_download_config(segments, max_connections, max_concurrent_downloads)
 
-        urls = input("Enter the URLs to download: (seperated by spaces) ").split()
+        urls = input("Enter the URLs to download: ")
         dm.start_download_job(urls, download_dir)
     except ValueError as e:
         print(f"Invalid Input: {e}")

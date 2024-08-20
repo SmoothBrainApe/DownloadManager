@@ -1,5 +1,6 @@
 import yt_dlp
 import aria2p
+from tqdm import tqdm
 import time
 
 
@@ -18,22 +19,50 @@ class DownloadManager:
             "split": str(self.segments),
             "max-connection-per-server": str(self.max_connections),
             "min-split-size": "1M",
-            "dir": download_dir,
+            "dir": str(download_dir),
             "continue": "true",
             "max-concurrent-downloads": str(self.max_concurrent_downloads),
             "check-integrity": "true",
             "file-allocation": "falloc",
-            "max-overall-download-limit": 0,
-            "max-download-limit": 0,
+            "max-overall-download-limit": "0",
+            "max-download-limit": "0",
             "disable-ipv6": "true",
             "auto-file-renaming": "false",
             "connect-timeout": "60",
             "max-tries": "5",
             "retry-wait": "10",
             "disk-cache": "64M",
+            "allow-overwrite": "true",
+            "allow-piece-length-change": "true",
+            "always-resume": "true",
+            "async-dns": "false",
+            "content-disposition-default-utf8": "true",
         }
         try:
             download = self.aria2.add_uris([url], options=options)
+            gid = download.gid
+
+            pbar = tqdm(
+                total=100,
+                unit="%",
+                ncols=80,
+                bar_format="{l_bar}{bar}| {n_fmt}/{total_fmt} [{elapsed}<{remaining}]",
+            )
+            while True:
+                status = self.aria2.get_download(gid)
+                if status.status == "complete":
+                    pbar.update(100 - pbar.n)
+                    break
+                if status.total_length > 0:
+                    if pbar.total is None:
+                        pbar.total = status.total_length
+                    progress = min((status.progress / status.total_length) * 100, 100)
+                    pbar.update(progress - pbar.n)
+                else:
+                    continue
+
+            pbar.close()
+            print("download completed")
             return download
         except Exception as e:
             print(f"Error occured: {e}")
@@ -60,27 +89,28 @@ class DownloadManager:
                 "--max-tries=5",
                 "--retry-wait=10",
                 "--disk-cache=64M",
+                "--allow-overwrite=true",
+                "--allow-piece-length-change=true",
+                "--always-resume=true",
+                "--async-dns=false",
+                "--content-disposition-default-utf8=true",
             ],
-            "outtmpl": f"{download_dir}/%(title)s.%(ext)s",
+            "outtmpl": f"{str(download_dir)}/%(title)s.%(ext)s",
         }
-        try:
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-        except Exception as e:
-            print(f"Error occured: {e}")
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download(url)
 
-    def start_download_job(self, urls, download_dir):
+    def start_download_job(self, url, download_dir):
         failed_downloads = []
-        for url in urls:
-            try:
-                time.sleep(2)
-                if self.is_video_url(url):
-                    self.download_video(url, download_dir)
-                else:
-                    self.download_file(url, download_dir)
-            except Exception as e:
-                print(f"Error downloading {url}: {e}")
-                failed_downloads.append(url)
+        try:
+            time.sleep(2)
+            if self.is_video_url(url):
+                self.download_video(url, download_dir)
+            else:
+                self.download_file(url, download_dir)
+        except Exception as e:
+            print(f"Error downloading {url}: {e}")
+            failed_downloads.append(url)
 
         if failed_downloads:
             print("The following downloads failed:")
