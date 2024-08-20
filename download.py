@@ -40,61 +40,7 @@ class DownloadManager:
         }
         try:
             download = self.aria2.add_uris([url], options=options)
-            gid = download.gid
-
-            pbar = tqdm(
-                unit="B",
-                unit_scale=True,
-                unit_divisor=1024,
-                desc="Downloading",
-                bar_format="{desc}: {n_fmt}/{total_fmt} ({percentage:.1f}%)",
-            )
-            last_update_time = time.time()
-            last_downloaded = 0
-            speed_sum = 0
-            speed_count = 0
-            while True:
-                status = self.aria2.get_download(gid)
-
-                if status.status == "complete":
-                    pbar.update(status.total_length - pbar.n)
-                    pbar.n = pbar.total
-                    pbar.set_postfix_str("(100.0%)")
-                    break
-
-                if status.total_length > 0:
-                    if pbar.total is None:
-                        pbar.total = status.total_length
-
-                    pbar.update(status.completed_length - pbar.n)
-
-                    current_time = time.time()
-                    elapsed_time = current_time - last_update_time
-
-                    if elapsed_time < 0.5:
-                        continue
-
-                    downloaded = status.completed_length - last_downloaded
-                    speed = downloaded / elapsed_time / 1024
-
-                    speed_sum += speed
-                    speed_count += 1
-                    avg_speed = speed_sum / speed_count
-
-                    if elapsed_time < 0.1:
-                        avg_speed = 0
-
-                    pbar.set_postfix_str(
-                        f"({status.progress*100:.1f}%) {avg_speed:.2f} KB/s"
-                    )
-                    pbar.refresh()
-
-                    last_update_time = current_time
-                    last_downloaded = status.completed_length
-                else:
-                    continue
-
-            pbar.close()
+            self.download_progress_display(download)
             print("download completed")
             return download
         except Exception as e:
@@ -131,7 +77,9 @@ class DownloadManager:
             "outtmpl": f"{str(download_dir)}/%(title)s.%(ext)s",
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download(url)
+            download = ydl.download(url)
+            self.download_progress_display(download)
+            print("download completed")
 
     def start_download_job(self, url, download_dir):
         failed_downloads = []
@@ -173,3 +121,59 @@ class DownloadManager:
         self.type_check(segments, "segments")
         self.type_check(max_connections, "max_connections")
         self.type_check(max_concurrent_downloads, "max_concurrent_downloads")
+
+    def download_progress_display(self, download):
+        gid = download.gid
+        pbar = tqdm(
+            unit="B",
+            unit_scale=True,
+            unit_divisor=1024,
+            desc="Downloading",
+            bar_format="{desc}: {n_fmt}/{total_fmt} ({percentage:.1f}%)",
+        )
+        last_update_time = time.time()
+        last_downloaded = 0
+        speed_sum = 0
+        speed_count = 0
+        while True:
+            status = self.aria2.get_download(gid)
+
+            if status.status == "complete":
+                pbar.update(status.total_length - pbar.n)
+                pbar.n = pbar.total
+                pbar.set_postfix_str("(100.0%)")
+                break
+
+            if status.total_length > 0:
+                if pbar.total is None:
+                    pbar.total = status.total_length
+
+                pbar.update(status.completed_length - pbar.n)
+
+                current_time = time.time()
+                elapsed_time = current_time - last_update_time
+
+                if elapsed_time < 0.5:
+                    continue
+
+                downloaded = status.completed_length - last_downloaded
+                speed = downloaded / elapsed_time / 1024
+
+                speed_sum += speed
+                speed_count += 1
+                avg_speed = speed_sum / speed_count
+
+                if elapsed_time < 0.1:
+                    avg_speed = 0
+
+                pbar.set_postfix_str(
+                    f"({status.progress*100:.1f}%) {avg_speed:.2f} KB/s"
+                )
+                pbar.refresh()
+
+                last_update_time = current_time
+                last_downloaded = status.completed_length
+            else:
+                continue
+
+        pbar.close()
