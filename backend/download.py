@@ -1,11 +1,11 @@
 import yt_dlp
 import aria2p
-from tqdm import tqdm
 import time
+from tqdm import tqdm
 
 
 class DownloadManager:
-    def __init__(self, segments=16, max_connections=16, max_concurrent_downloads=3):
+    def __init__(self, segments=8, max_connections=8, max_concurrent_downloads=3):
         self.aria2 = aria2p.API(aria2p.Client())
         self.segments = segments
         self.max_connections = max_connections
@@ -34,8 +34,8 @@ class DownloadManager:
             "disk-cache": "64M",
             "allow-overwrite": "true",
             "allow-piece-length-change": "true",
-            "always-resume": "true",
             "async-dns": "false",
+            "always-resume": "true",
             "content-disposition-default-utf8": "true",
         }
         try:
@@ -82,7 +82,6 @@ class DownloadManager:
             print("download completed")
 
     def start_download_job(self, url, download_dir):
-        failed_downloads = []
         try:
             time.sleep(2)
             if self.is_video_url(url):
@@ -91,18 +90,6 @@ class DownloadManager:
                 self.download_file(url, download_dir)
         except Exception as e:
             print(f"Error downloading {url}: {e}")
-            failed_downloads.append(url)
-
-        if failed_downloads:
-            print("The following downloads failed:")
-            for url in failed_downloads:
-                print(url)
-            resume_option = input("Do you want to resume failed downloads? (y/n) ")
-            while resume_option.lower() not in ["y", "n"]:
-                resume_option = input("Invalid input. Please enter 'y' or 'n' only: ")
-            if resume_option.lower() == "y":
-                self.start_download_job(failed_downloads)
-                failed_downloads = []
 
     def is_video_url(self, url):
         if not isinstance(url, str):
@@ -129,51 +116,39 @@ class DownloadManager:
             unit_scale=True,
             unit_divisor=1024,
             desc="Downloading",
-            bar_format="{desc}: {n_fmt}/{total_fmt} ({percentage:.1f}%)",
+            bar_format="{desc}: {n_fmt}/{total_fmt} ({percentage:.1f}%) {rate_fmt}",
         )
         last_update_time = time.time()
-        last_downloaded = 0
-        speed_sum = 0
-        speed_count = 0
+        last_downloaded_size = 0
         while True:
             status = self.aria2.get_download(gid)
+            total_size = status.total_length
+            downloaded_size = status.completed_length
 
             if status.status == "complete":
-                pbar.update(status.total_length - pbar.n)
+                pbar.update(total_size - pbar.n)
                 pbar.n = pbar.total
-                pbar.set_postfix_str("(100.0%)")
+                pbar.set_postfix_str("(100%)")
                 break
 
-            if status.total_length > 0:
+            if total_size > 0:
                 if pbar.total is None:
-                    pbar.total = status.total_length
-
-                pbar.update(status.completed_length - pbar.n)
+                    pbar.total = total_size
 
                 current_time = time.time()
                 elapsed_time = current_time - last_update_time
 
-                if elapsed_time < 0.5:
-                    continue
-
-                downloaded = status.completed_length - last_downloaded
-                speed = downloaded / elapsed_time / 1024
-
-                speed_sum += speed
-                speed_count += 1
-                avg_speed = speed_sum / speed_count
-
-                if elapsed_time < 0.1:
-                    avg_speed = 0
-
-                pbar.set_postfix_str(
-                    f"({status.progress*100:.1f}%) {avg_speed:.2f} KB/s"
-                )
-                pbar.refresh()
-
+                if elapsed_time > 0:
+                    download_speed = (
+                        downloaded_size - last_downloaded_size
+                    ) / elapsed_time
+                    pbar.set_postfix_str(f"(100%) {download_speed:.2f}B/s")
                 last_update_time = current_time
-                last_downloaded = status.completed_length
+                last_downloaded_size = downloaded_size
+
+                pbar.update(downloaded_size - pbar.n)
+                pbar.refresh()
+                time.sleep(0.5)
             else:
                 continue
-
         pbar.close()

@@ -1,4 +1,4 @@
-from download import DownloadManager
+from backend.download import DownloadManager
 import pathlib
 
 
@@ -9,8 +9,8 @@ def main():
         if not download_dir.exists():
             download_dir.mkdir(parents=True)
 
-        segments = int(input("Enter number of segments (default 16): ") or 16)
-        max_connections = int(input("Enter max connections (default 16): ") or 16)
+        segments = int(input("Enter number of segments (default 8): ") or 8)
+        max_connections = int(input("Enter max connections (default 8): ") or 8)
         max_concurrent_downloads = int(
             input("Enter max connections (default 3): ") or 3
         )
