@@ -6,7 +6,13 @@ from tqdm import tqdm
 
 class DownloadManager:
     def __init__(self, segments=8, max_connections=8, max_concurrent_downloads=3):
-        self.aria2 = aria2p.API(aria2p.Client())
+        self.aria2 = aria2p.API(
+            aria2p.Client(
+                host="http://localhost",
+                port=6800,
+                secret="",
+            )
+        )
         self.segments = segments
         self.max_connections = max_connections
         self.max_concurrent_downloads = max_concurrent_downloads
@@ -27,7 +33,7 @@ class DownloadManager:
             "max-overall-download-limit": "0",
             "max-download-limit": "0",
             "disable-ipv6": "true",
-            "auto-file-renaming": "false",
+            "auto-file-renaming": "true",
             "connect-timeout": "60",
             "max-tries": "5",
             "retry-wait": "10",
@@ -63,7 +69,7 @@ class DownloadManager:
                 "--max-overall-download-limit=0",
                 "--max-download-limit=0",
                 "--disable-ipv6=true",
-                "--auto-file-renaming=false",
+                "--auto-file-renaming=true",
                 "--connect-timeout=60",
                 "--max-tries=5",
                 "--retry-wait=10",
